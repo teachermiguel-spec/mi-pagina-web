@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HoloChat: The "Used To" Simulator</title>
+    <style>
+        :root {
+            --neon-blue: #00f3ff;
+            --neon-purple: #bc13fe;
+            --neon-red: #ff003c;
+            --dark-bg: #050510;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        body {
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: var(--neon-blue);
+            overflow: hidden;
+            background-image: 
+                radial-gradient(circle at center, #050510 0%, #000 100%),
+                repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 243, 255, 0.05) 2px, rgba(0, 243, 255, 0.05) 4px);
+        }
+
+        #holo-device {
+            width: 380px;
+            height: 700px;
+            border: 2px solid var(--neon-blue);
+            border-radius: 20px;
+            box-shadow: 0 0 15px var(--neon-blue), inset 0 0 15px rgba(0, 243, 255, 0.2);
+            background: rgba(0, 20, 30, 0.85);
+            backdrop-filter: blur(5px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Scanline effect */
+        #holo-device::after {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.1));
+            background-size: 100% 4px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        #header {
+            padding: 15px;
+            text-align: center;
+            border-bottom: 1px solid var(--neon-blue);
+            background: rgba(0, 243, 255, 0.1);
+            box-shadow: 0 4px 10px rgba(0, 243, 255, 0.1);
+        }
+
+        #header h1 {
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 0 0 5px var(--neon-blue);
+        }
+
+        #status {
+            font-size: 0.8rem;
+            color: #aaddff;
+        }
+
+        #progress-container {
+            height: 4px;
+            background: #111;
+            width: 100%;
+        }
+
+        #progress-bar {
+            height: 100%;
+            width: 0%;
+            background: var(--neon-purple);
+            box-shadow: 0 0 8px var(--neon-purple);
+            transition: width 0.4s ease;
+        }
+
+        #chat-window {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            scroll-behavior: smooth;
+        }
+
+        /* Custom Scrollbar */
+        #chat-window::-webkit-scrollbar {
+            width: 6px;
+        }
+        #chat-window::-webkit-scrollbar-thumb {
+            background: var(--neon-blue);
+            border-radius: 3px;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 10px 15px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            line-height: 1.4;
+            animation: fadeIn 0.3s ease;
+            position: relative;
+            z-index: 2;
+        }
+
+        .msg-npc {
+            align-self: flex-start;
+            border: 1px solid var(--neon-blue);
+            background: rgba(0, 243, 255, 0.05);
+            box-shadow: 0 0 8px rgba(0, 243, 255, 0.3);
+            border-bottom-left-radius: 2px;
+        }
+
+        .msg-player {
+            align-self: flex-end;
+            border: 1px solid var(--neon-purple);
+            background: rgba(188, 19, 254, 0.05);
+            color: #ebb4ff;
+            box-shadow: 0 0 8px rgba(188, 19, 254, 0.3);
+            border-bottom-right-radius: 2px;
+        }
+
+        #options-container {
+            padding: 15px;
+            border-top: 1px solid var(--neon-blue);
+            background: rgba(0, 0, 0, 0.6);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 20;
+        }
+
+        .option-btn {
+            background: transparent;
+            border: 1px solid var(--neon-blue);
+            color: var(--neon-blue);
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s;
+        }
+
+        .option-btn:hover {
+            background: rgba(0, 243, 255, 0.2);
+            box-shadow: 0 0 10px var(--neon-blue);
+        }
+
+        .option-btn.wrong {
+            border-color: var(--neon-red);
+            color: var(--neon-red);
+            box-shadow: 0 0 10px var(--neon-red);
+            background: rgba(255, 0, 60, 0.1);
+            animation: shake 0.3s;
+        }
+
+        #start-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 5, 10, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+            padding: 20px;
+            text-align: center;
+        }
+
+        #start-btn {
+            margin-top: 20px;
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            background: transparent;
+            border: 2px solid var(--neon-blue);
+            color: var(--neon-blue);
+            cursor: pointer;
+            text-transform: uppercase;
+            box-shadow: 0 0 15px var(--neon-blue);
+            transition: 0.3s;
+        }
+
+        #start-btn:hover {
+            background: var(--neon-blue);
+            color: #000;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            50% { transform: translateX(5px); }
+            75% { transform: translateX(-5px); }
+        }
+
+        .typing-indicator {
+            font-style: italic;
+            color: #666;
+            font-size: 0.8rem;
+            align-self: flex-start;
+            margin-bottom: -5px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="holo-device">
+        <div id="start-screen">
+            <h2 style="text-shadow: 0 0 10px var(--neon-blue);">HOLOGRAM CHAT</h2>
+            <p style="margin-top: 15px; font-size: 0.9rem; color: #aaddff;">Topic: "Used to" (Past Habits)</p>
+            <p style="margin-top: 10px; font-size: 0.8rem;">Select the grammatically correct response to continue the conversation.</p>
+            <button id="start-btn">Initialize Connection</button>
+        </div>
+
+        <div id="header">
+            <h1>Alex_Holo</h1>
+            <div id="status">Online</div>
+        </div>
+        
+        <div id="progress-container">
+            <div id="progress-bar"></div>
+        </div>
+
+        <div id="chat-window">
+            <!-- Messages will appear here -->
+            <div id="typing" class="typing-indicator">Alex is typing...</div>
+        </div>
+
+        <div id="options-container" style="display: none;">
+            <!-- Options will appear here -->
+        </div>
+    </div>
+
+    <script>
+        // Data Structure for the conversation (10 Exchanges / 20 Messages total)
+        const storyData = [
+            {
+                npc: "Hey! I found some old digital photos from when we were kids. Do you remember our old neighborhood?",
+                options: [
+                    { text: "Wow! Yes, I use to live next door to you.", isCorrect: false },
+                    { text: "Wow! Yes, I used to lived next door to you.", isCorrect: false },
+                    { text: "Wow! Yes, I used to live next door to you.", isCorrect: true }
+                ]
+            },
+            {
+                npc: "Exactly! We had so much fun. What did we usually do after school?",
+                options: [
+                    { text: "We used to ride our bikes in the park.", isCorrect: true },
+                    { text: "We used to riding our bikes in the park.", isCorrect: false },
+                    { text: "We are used to ride our bikes in the park.", isCorrect: false }
+                ]
+            },
+            {
+                npc: "I loved that park! But I didn't like the big dogs there. Did you?",
+                options: [
+                    { text: "No, I didn't used to like them either.", isCorrect: false },
+                    { text: "No, I didn't use to like them either.", isCorrect: true },
+                    { text: "No, I not used to like them either.", isCorrect: false }
+                ]
+            },
+            {
+                npc: "Yeah, they were scary! Oh, look at this photo! You had really long hair!",
+                options: [
+                    { text: "Haha! Did I used to have long hair? I forgot!", isCorrect: false },
+                    { text: "Haha! Did I use to had long hair? I forgot!", isCorrect: false },
+                    { text: "Haha! Did I use to have long hair? I forgot!", isCorrect: true }
+                ]
+            },
+            {
+                npc: "You did! And you hated eating vegetables. Your mom was always angry.",
+                options: [
+                    { text: "True. I didn't use to eat tomatoes or broccoli.", isCorrect: true },
+                    { text: "True. I didn't used to eat tomatoes or broccoli.", isCorrect: false },
+                    { text: "True. I wasn't used to eat tomatoes or broccoli.", isCorrect: false }
+                ]
+            },
+            {
+                npc: "But now you are a vegan chef! That's so funny.",
+                options: [
+                    { text: "I know. People change. Did you used to be a picky eater too?", isCorrect: false },
+                    { text: "I know. People change. Did you use to be a picky eater too?", isCorrect: true },
+                    { text: "I know. People change. Used you to be a picky eater too?", isCorrect: false }
+                ]
+            },
+            {
+                npc: "Not really, but I loved sweets. I ate chocolate every single day.",
+                options: [
+                    { text: "Oh yes! You used to bought a chocolate bar after school.", isCorrect: false },
+                    { text: "Oh yes! You used to buy a chocolate bar after school.", isCorrect: true },
+                    { text: "Oh yes! You use to buy a chocolate bar after school.", isCorrect: false }
+                ]
+            },
+            {
+                npc: "Guilty! Hey, do you remember our old secret treehouse?",
+                options: [
+                    { text: "Of course! We used to spend hours in that treehouse.", isCorrect: true },
+                    { text: "Of course! We did use to spent hours in that treehouse.", isCorrect: false },
+                    { text: "Of course! We used spend hours in that treehouse.", isCorrect: false }
+                ]
+            },
+            {
+                npc: "It was the best place ever. We didn't have smartphones back then.",
+                options: [
+                    { text: "Right. We didn't used to play video games all day.", isCorrect: false },
+                    { text: "Right. We didn't use to played video games all day.", isCorrect: false },
+                    { text: "Right. We didn't use to play video games all day.", isCorrect: true }
+                ]
+            },
+            {
+                npc: "Life was simpler. We should meet up soon and visit the old places!",
+                options: [
+                    { text: "I'd love that! We can do the things we use to do.", isCorrect: false },
+                    { text: "I'd love that! We can do the things we used to doing.", isCorrect: false },
+                    { text: "I'd love that! We can do the things we used to do.", isCorrect: true }
+                ]
+            }
+        ];
+
+        let currentStep = 0;
+        let audioCtx;
+
+        // Web Audio API Sound Generation
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        // High pitch beep for incoming messages
+        function playIncomingSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+            osc.frequency.exponentialRampToValueAtTime(1760, audioCtx.currentTime + 0.1); // A6
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.1);
+        }
+
+        // Swoosh sound for outgoing messages
+        function playOutgoingSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.2);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.2);
+        }
+
+        // Error beep for wrong answers
+        function playErrorSound() {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.15);
+        }
+
+        // UI Elements
+        const startScreen = document.getElementById('start-screen');
+        const startBtn = document.getElementById('start-btn');
+        const chatWindow = document.getElementById('chat-window');
+        const optionsContainer = document.getElementById('options-container');
+        const progressBar = document.getElementById('progress-bar');
+        const typingIndicator = document.getElementById('typing');
+        const statusText = document.getElementById('status');
+
+        startBtn.addEventListener('click', () => {
+            initAudio();
+            startScreen.style.display = 'none';
+            optionsContainer.style.display = 'flex';
+            triggerNpcMessage();
+        });
+
+        function updateScroll() {
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        function triggerNpcMessage() {
+            optionsContainer.innerHTML = ''; // Clear options
+            typingIndicator.style.display = 'block';
+            chatWindow.appendChild(typingIndicator); // Move indicator to bottom
+            updateScroll();
+
+            // Simulate typing delay
+            setTimeout(() => {
+                typingIndicator.style.display = 'none';
+                appendMessage(storyData[currentStep].npc, 'npc');
+                playIncomingSound();
+                renderOptions();
+            }, 1500);
+        }
+
+        function appendMessage(text, sender) {
+            const msgDiv = document.createElement('div');
+            msgDiv.classList.add('message');
+            msgDiv.classList.add(sender === 'npc' ? 'msg-npc' : 'msg-player');
+            msgDiv.innerText = text;
+            chatWindow.appendChild(msgDiv);
+            updateScroll();
+        }
+
+        function renderOptions() {
+            optionsContainer.innerHTML = '';
+            
+            // Randomize options order
+            const options = [...storyData[currentStep].options];
+            options.sort(() => Math.random() - 0.5);
+
+            options.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.classList.add('option-btn');
+                btn.innerText = opt.text;
+                btn.onclick = () => handleOptionClick(btn, opt);
+                optionsContainer.appendChild(btn);
+            });
+        }
+
+        function handleOptionClick(btn, opt) {
+            if (opt.isCorrect) {
+                playOutgoingSound();
+                appendMessage(opt.text, 'player');
+                
+                // Update Progress
+                currentStep++;
+                const progressPercentage = (currentStep / storyData.length) * 100;
+                progressBar.style.width = progressPercentage + '%';
+
+                if (currentStep < storyData.length) {
+                    triggerNpcMessage();
+                } else {
+                    optionsContainer.innerHTML = '<div style="text-align:center; color: var(--neon-blue); padding: 10px;">CHAT DISCONNECTED - SIMULATION COMPLETE</div>';
+                    statusText.innerText = 'Offline';
+                    statusText.style.color = 'var(--neon-red)';
+                }
+            } else {
+                playErrorSound();
+                btn.classList.add('wrong');
+                setTimeout(() => btn.classList.remove('wrong'), 400);
+            }
+        }
+    </script>
+</body>
+</html>
